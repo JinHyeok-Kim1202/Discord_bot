@@ -192,8 +192,9 @@ async def set_alarm_channel(interaction: discord.Interaction, channel: discord.T
     save_alarm_config()
 
     if alarm_scheduler.is_running():
-        alarm_scheduler.stop()
-        await asyncio.sleep(2)  # ★ 완전히 멈추는 시간 약간 주기
+        await interaction.response.send_message(f"❌ 이미 설정되어있습니다.", ephemeral=True, delete_after=180)
+        alarm_scheduler.cancel()
+        return
     alarm_scheduler.start()
 
     await interaction.response.send_message(f"✅ 알람 채널이 {channel.mention}로 설정되었습니다! (알람 스케줄러 재시작 완료)", ephemeral=True, delete_after=180)
