@@ -407,11 +407,10 @@ async def alarm_schedule(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed, ephemeral=True)  # 본인에게만 보이게
 
-
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(bot.start(TOKEN))
 
 # 서버 실행
 if __name__ == "__main__":
-    threading.Thread(target=keep_alive_ping).start()
-    threading.Thread(target=run_discord_bot).start()
-    port = int(os.environ.get("PORT", 10000))  # Render가 제공하는 포트 사용
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
