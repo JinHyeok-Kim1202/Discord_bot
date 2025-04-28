@@ -24,7 +24,7 @@ else:
 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
     config_data = json.load(f)
 
-TOKEN = config_data["TOKEN"]
+TOKEN = config_data["DISCORD_BOT_TOKEN"]
 GUILD_ID = config_data["GUILD_ID"]
 command_guild = discord.Object(id=GUILD_ID) if dev_mode else None
 
