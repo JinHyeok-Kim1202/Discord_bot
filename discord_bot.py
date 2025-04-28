@@ -54,6 +54,15 @@ def save_alarm_config():
     with open(ALARM_CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(alarm_config, f, ensure_ascii=False, indent=4)
 
+# 역할 매핑 데이터 (시간대별 역할 ID)
+ROLE_DATA_FILE = "alarm_roles.json"
+if os.path.exists(ROLE_DATA_FILE):
+    with open(ROLE_DATA_FILE, "r", encoding="utf-8") as f:
+        role_ids = json.load(f)
+else:
+    print("❌ 역할 매핑 파일이 없습니다. 종료합니다.")
+    sys.exit()
+
 # 1. gathering_data.json 로딩
 with open("json/gathering/gathering_data.json", "r", encoding="utf-8") as f:
     GATHERING_DATA = json.load(f)
@@ -103,28 +112,26 @@ ALL_TRADE_DATA = {
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 버튼 뷰
-class AlarmSelectView(discord.ui.View):
+# 🛠️ 알람 설정 메인 View
+class AlarmSelectMainView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="결계 알람 설정", style=discord.ButtonStyle.primary, custom_id="barrier_setting")
     async def barrier_setting(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(view=BarrierSelectView(), ephemeral=True)
+        view = BarrierSelectView()
+        await interaction.response.send_message("🔵 결계 시간대를 선택하세요!", view=view, ephemeral=True)
 
     @discord.ui.button(label="필드보스 알람 설정", style=discord.ButtonStyle.success, custom_id="boss_setting")
     async def boss_setting(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(view=BossSelectView(), ephemeral=True)
+        view = BossSelectView()
+        await interaction.response.send_message("🟢 필보 시간대를 선택하세요!", view=view, ephemeral=True)
 
+# 🛠️ 결계 알람 Select
 class BarrierSelectView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(BarrierSelect())
-
-class BossSelectView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(BossSelect())
 
 class BarrierSelect(discord.ui.Select):
     def __init__(self):
@@ -138,19 +145,25 @@ class BarrierSelect(discord.ui.Select):
             discord.SelectOption(label="18시", value="18"),
             discord.SelectOption(label="21시", value="21"),
         ]
-        super().__init__(placeholder="원하는 결계 시간을 선택하세요", min_values=1, max_values=8, options=options)
+        super().__init__(placeholder="원하는 결계 시간대를 선택하세요", min_values=1, max_values=4, options=options)
 
     async def callback(self, interaction: discord.Interaction):
         selected_hours = [int(value) for value in self.values]
         added = []
         for hour in selected_hours:
-            role_ids_list = registered_users["결계"].get(str(hour), [])
-            for role_id in role_ids_list:
+            role_list = role_ids["결계"].get(str(hour), [])
+            for role_id in role_list:
                 role = interaction.guild.get_role(role_id)
-                if role:
+                if role and role not in interaction.user.roles:
                     await interaction.user.add_roles(role)
                     added.append(role.name)
-        await interaction.response.send_message(f"✅ 결계 알람 등록 완료: {', '.join(added)}", ephemeral=True)
+        await interaction.response.send_message(f"✅ 결계 알람 등록 완료: {', '.join(added)}", ephemeral=True, delete_after=10)
+
+# 🛠️ 필보 알람 Select
+class BossSelectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(BossSelect())
 
 class BossSelect(discord.ui.Select):
     def __init__(self):
@@ -160,32 +173,32 @@ class BossSelect(discord.ui.Select):
             discord.SelectOption(label="20시", value="20"),
             discord.SelectOption(label="22시", value="22"),
         ]
-        super().__init__(placeholder="원하는 필보 시간을 선택하세요", min_values=1, max_values=4, options=options)
+        super().__init__(placeholder="원하는 필보 시간대를 선택하세요", min_values=1, max_values=4, options=options)
 
     async def callback(self, interaction: discord.Interaction):
         selected_hours = [int(value) for value in self.values]
         added = []
         for hour in selected_hours:
-            role_ids_list = registered_users["필드보스"].get(str(hour), [])
-            for role_id in role_ids_list:
+            role_list = role_ids["필드보스"].get(str(hour), [])
+            for role_id in role_list:
                 role = interaction.guild.get_role(role_id)
-                if role:
+                if role and role not in interaction.user.roles:
                     await interaction.user.add_roles(role)
                     added.append(role.name)
-        await interaction.response.send_message(f"✅ 필보 알람 등록 완료: {', '.join(added)}", ephemeral=True)
-
+        await interaction.response.send_message(f"✅ 필보 알람 등록 완료: {', '.join(added)}", ephemeral=True, delete_after=10)
 
 # /알람설정 명령어
-@bot.tree.command(name="알람설정", description="알람을 설정할 수 있습니다", guild=command_guild)
+@bot.tree.command(name="알람설정", description="결계/필보 알람을 설정합니다", guild=discord.Object(id=GUILD_ID) if dev_mode else None)
 async def alarm_setting(interaction: discord.Interaction):
-    view = AlarmSelectView()
-    await interaction.response.send_message("🔔 원하는 알람을 선택하세요!", view=view, ephemeral=True)
-    
-@bot.tree.command(name="알람채널설정", description="알람을 보낼 채널을 설정합니다 (관리자만)", guild=command_guild)
+    view = AlarmSelectMainView()
+    await interaction.response.send_message("🔔 원하는 알람 종류를 선택하세요!", view=view, ephemeral=True)
+
+# /알람채널설정 명령어
+@bot.tree.command(name="알람채널설정", description="알람을 보낼 채널을 설정합니다 (관리자만)", guild=discord.Object(id=GUILD_ID) if dev_mode else None)
 @app_commands.describe(channel="알람을 보낼 채널을 선택하세요")
 async def set_alarm_channel(interaction: discord.Interaction, channel: discord.TextChannel):
     if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("❌ 이 명령어는 서버 관리자만 사용할 수 있습니다.", ephemeral=True)
+        await interaction.response.send_message("❌ 관리자만 설정 가능합니다.", ephemeral=True)
         return
 
     alarm_config["alarm_channel_id"] = channel.id
@@ -197,40 +210,35 @@ async def set_alarm_channel(interaction: discord.Interaction, channel: discord.T
         return
     alarm_scheduler.start()
 
-    await interaction.response.send_message(f"✅ 알람 채널이 {channel.mention}로 설정되었습니다! (알람 스케줄러 재시작 완료)", ephemeral=True, delete_after=180)
+    await interaction.response.send_message(f"✅ 알람 채널이 {channel.mention}로 설정되었습니다! (알람 스케줄러 재시작 완료)", ephemeral=True)
 
-
-# 자동 알람 스케줄러
+# 알람 스케줄러
 @tasks.loop(minutes=1)
 async def alarm_scheduler():
-    now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)  # 한국 시간
+    now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
     current_hour = now.hour
     current_minute = now.minute
 
     alarm_channel_id = alarm_config.get("alarm_channel_id")
     if not alarm_channel_id:
-        print("❌ 알람 채널이 아직 설정되지 않았습니다.")
         return
 
     channel = bot.get_channel(alarm_channel_id)
     if not channel:
-        print("❌ 알람 채널을 찾을 수 없습니다.")
         return
 
-    # 결계 알람 (목표: 12, 15, 18, 21) -> 실제 울릴 시간: 11:57, 14:57, 17:57, 20:57
-    barrier_times = [0, 3, 6, 9, 12, 15, 18, 21]
-    if current_minute == 57 and (current_hour + 1) in barrier_times:
-        role_id = registered_users["결계"][current_hour + 1]
-        role = channel.guild.get_role(role_id)
-        if role:
-            await channel.send(f"🔔 **결계 알람**: 3분 후 {current_hour+1}시에 시작합니다! {role.mention}", delete_after=180)
-
-    # 필드보스 알람
-    if current_minute == 57 and (current_hour + 1) in [12, 18, 20, 22]:
-        role_id = registered_users["필드보스"][current_hour + 1]
-        role = channel.guild.get_role(role_id)
-        if role:
-            await channel.send(f"⚔️ **필드보스 알람**: 3분 후 {current_hour+1}시에 출현합니다! {role.mention}", delete_after=180)
+    if current_minute == 57:
+        next_hour = current_hour + 1
+        for category in ["결계", "필드보스"]:
+            role_list = role_ids.get(category, {}).get(str(next_hour), [])
+            mentions = []
+            for role_id in role_list:
+                role = channel.guild.get_role(role_id)
+                if role:
+                    mentions.append(role.mention)
+            if mentions:
+                message = f"🔔 **[{category} 알람]** 3분 후 {next_hour}시 예정입니다!\n" + " ".join(mentions)
+                await channel.send(message, delete_after=180)
 
 # FastAPI 서버
 app = FastAPI()
