@@ -3,6 +3,11 @@ from discord import app_commands
 from discord.ext import commands
 import json
 import os
+import threading
+import time
+import requests
+from fastapi import FastAPI
+import uvicorn
 
 # 1. gathering_data.json 로딩
 with open("json/gathering/gathering_data.json", "r", encoding="utf-8") as f:
@@ -53,7 +58,29 @@ ALL_TRADE_DATA = {
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-GUILD_ID = 1357686385032695828
+# FastAPI 서버
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {"message": "Bot is alive!"}
+#GUILD_ID = 1357686385032695828
+
+# 14분마다 서버를 깨우는 핑 함수
+def keep_alive_ping():
+    while True:
+        try:
+            url = os.environ.get("RENDER_EXTERNAL_URL")  # Render 환경변수로 서버 URL을 받을 수 있어
+            if url:
+                requests.get(url)
+                print(f"[KeepAlive] Ping sent to {url}")
+        except Exception as e:
+            print(f"[KeepAlive] Ping failed: {e}")
+        time.sleep(60 * 14)  # 14분 대기
+        
+# 디스코드 봇 실행 함수
+def run_discord_bot():
+    bot.run(os.environ["DISCORD_BOT_TOKEN"])
 
 @bot.event
 async def on_ready():
@@ -215,4 +242,8 @@ async def alarm_schedule(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)  # 본인에게만 보이게
 
 
-bot.run(os.environ["DISCORD_BOT_TOKEN"])
+# 서버 실행
+if __name__ == "__main__":
+    threading.Thread(target=keep_alive_ping).start()
+    threading.Thread(target=run_discord_bot).start()
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
