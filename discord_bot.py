@@ -55,7 +55,7 @@ def save_alarm_config():
         json.dump(alarm_config, f, ensure_ascii=False, indent=4)
 
 # 역할 매핑 데이터 (시간대별 역할 ID)
-ROLE_DATA_FILE = "alarm_roles.json"
+ROLE_DATA_FILE = "json/alarm/alarm_roles.json"
 if os.path.exists(ROLE_DATA_FILE):
     with open(ROLE_DATA_FILE, "r", encoding="utf-8") as f:
         role_ids = json.load(f)
